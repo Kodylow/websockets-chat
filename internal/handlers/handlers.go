@@ -135,7 +135,7 @@ func ListenToWsChannel() {
 		case "broadcast":
 			response.Action = "broadcast"
 			//format as a from: message sorta look
-			response.Message = fmt.Sprintf("<strong>%s</strong>, %s", event.Username, event.Message)
+			response.Message = fmt.Sprintf("<strong>%s</strong>: %s", event.Username, event.Message)
 			broadcast(response)
 		}
 	}
