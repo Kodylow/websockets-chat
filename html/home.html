@@ -50,12 +50,20 @@
               autocomplete="off"
             />
           </div>
+          <hr />
+          <a
+            href="javascript:void(0);"
+            class="btn btn-outline-secondary"
+            id="sendBtn"
+            >Send Message</a
+          >
           <input type="hidden" name="action" id="action" />
           <hr />
           <div id="output" class="chatbox"></div>
         </div>
         <div class="col-md-4">
           <h3>Who's online</h3>
+          <ul id="online_users"></ul>
         </div>
       </div>
     </div>
@@ -67,8 +75,17 @@
     ></script>
     <script>
       let socket = null;
+      let o = document.getElementById("output");
+
+      window.onbeforeunload = () => {
+        console.log("buh-bye!");
+        let jsonData = {};
+        jsonData["action"] = "left";
+        socket.send(JSON.stringify(jsonData));
+      };
 
       document.addEventListener("DOMContentLoaded", function () {
+        //sockets have 4 relevant methods: open, close, error, message
         socket = new WebSocket("ws://127.0.0.1:8080/ws");
 
         socket.onopen = () => {
@@ -84,10 +101,61 @@
         };
 
         socket.onmessage = (msg) => {
-          let j = JSON.parse(msg.data);
-          console.log(j);
+          let data = JSON.parse(msg.data);
+          console.log("Action is", data.action);
+
+          switch (data.action) {
+            case "list_users":
+              console.log(data);
+              let ul = document.getElementById("online_users");
+              while (ul.firstChild) ul.removeChild(ul.firstChild);
+
+              if (data.connect_users && data.connected_users.length > 0) {
+                data.connected_users.forEach((element) => {
+                  let li = document.createElement("li");
+                  li.appendChild(document.createTextNode(element));
+                  ul.appendChild(li);
+                });
+              }
+              break;
+
+            case "broadcast":
+              o.innerHTML = o.innerHTML + data.message + "<br />";
+              break;
+          }
         };
+
+        let userInput = document.getElementById("username");
+        userInput.addEventListener("change", () => {
+          let jsonData = {};
+          jsonData["action"] = "username";
+          jsonData["username"] = this.value;
+          socket.send(JSON.stringify(jsonData));
+        });
+
+        document
+          .getElementById("message")
+          .addEventListener("keydown", (event) => {
+            if (event.code === "Enter") {
+              if (!socket) {
+                console.log("no connection");
+                return false;
+              }
+              event.preventDefault();
+              event.stopPropagation();
+              sendMessage();
+            }
+          });
       });
+
+      const sendMessage = () => {
+        let jsonData = {};
+        jsonData["action"] = "broadcast";
+        jsonData["username"] = document.getElementById("username").value;
+        jsonData["message"] = document.getElementById("message").value;
+        socket.send(JSON.stringify(jsonData));
+        json.getElementById("message").value = "";
+      };
     </script>
   </body>
 </html>

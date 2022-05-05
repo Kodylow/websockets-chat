@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"sort"
 
 	"github.com/CloudyKit/jet/v6"
 	"github.com/gorilla/websocket"
@@ -39,9 +40,10 @@ type WsConnection struct {
 
 // WsJSONResponse defines the response sent back from websocket
 type WsJSONResponse struct {
-	Action      string `json:"action"`
-	Message     string `json:"message"`
-	MessageType string `json:"message_type"`
+	Action         string   `json:"action"`
+	Message        string   `json:"message"`
+	MessageType    string   `json:"message_type"`
+	ConnectedUsers []string `json:"connected_users"`
 }
 
 // WsPayload defines the payload
@@ -109,13 +111,48 @@ func ListenToWsChannel() {
 		//get a payload from the channel
 		event := <-wsChan
 
-		//fill out the response variable
-		response.Action = "In channel"
-		response.Message = fmt.Sprintf("Message, action was %s", event.Action)
+		switch event.Action {
+		case "username":
+			//get a list of all users and send it back via broadcast
+			clients[event.Conn] = event.Username
+			users := getUserList()
 
-		//broadcast to everyone
-		broadcast(response)
+			//fill out the response
+			response.Action = "list_users"
+			response.ConnectedUsers = users
+
+			//broadcast to everyone
+			broadcast(response)
+
+		// client left, remove from users and send back updated userlist
+		case "left":
+			response.Action = "list_users"
+			delete(clients, event.Conn)
+			users := getUserList()
+			response.ConnectedUsers = users
+			broadcast(response)
+
+		case "broadcast":
+			response.Action = "broadcast"
+			//format as a from: message sorta look
+			response.Message = fmt.Sprintf("<strong>%s</strong>, %s", event.Username, event.Message)
+			broadcast(response)
+		}
 	}
+}
+
+// getUserList grabs users off clients map and returns as an array
+func getUserList() []string {
+	var userList []string
+	for _, x := range clients {
+		//only add if not a lurker
+		if x != "" {
+			userList = append(userList, x)
+		}
+	}
+
+	sort.Strings(userList)
+	return userList
 }
 
 // Broadcast forwards the payload as json writing to all the other clients when someone posts in the chatroom
